@@ -4,3 +4,4 @@ w_filters_d8 - without any pre-processing of the image, piramid while (min, rows
 morf_c_d32 - with morfology close, piramid while (min, rows, cols) > max(20, min(rows/32, cols/32))
 morf_o_d32 - with morfology open, piramid while (min, rows, cols) > max(20, min(rows/32, cols/32))
 morf_c&o_d32 - with morfology open and close , piramid while (min, rows, cols) > max(20, min(rows/32, cols/32))
+origin - actual 4.x aruco detect
