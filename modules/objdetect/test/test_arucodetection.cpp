@@ -718,6 +718,72 @@ TEST_P(ArucoThreading, number_of_threads_does_not_change_results)
     }
 }
 
+TEST(CV_ArucoDetectMarkers, custom_test1)
+{
+    string imgPath = "D:\\ITLab\\Python\\pictures\\rects1.png";
+
+    Mat img = imread(imgPath), img_for_marker;
+    img.copyTo(img_for_marker);
+   
+
+    Mat with_contours;
+    img.copyTo(with_contours);
+    cv::cvtColor(img, with_contours, COLOR_BGR2GRAY);
+    
+
+    cv::threshold(with_contours, with_contours, 100, 255, THRESH_BINARY);
+    cv::imshow("BINARY", with_contours);
+
+    vector<vector<Point>> all_contours;
+    Scalar pink(255, 10, 255);
+    findContours(with_contours, all_contours, RETR_LIST, CHAIN_APPROX_NONE);
+    cv::drawContours(img, all_contours, -1, pink, 2);
+    cv::imshow("contours", img);
+
+    vector<vector<Point>> good_contours, rej_contours;
+    for (int contour = 0; contour < all_contours.size(); ++contour)
+    {
+        RotatedRect rectangle = minAreaRect(all_contours[contour]);
+        vector<Point2f> points;
+        rectangle.points(points);
+       
+      
+        vector<vector<cv::Point>> corners(1);
+        for (const auto& point : points) {
+            corners[0].push_back(point);
+        }
+
+        cv::aruco::drawDetectedMarkers(img_for_marker, corners);
+
+    }
+    cv::imshow("marker", img_for_marker);
+    // new version
+
+
+
+    if ((waitKey(0) & 0xFF) == 27)
+    {
+        return;
+    }
+}
+
+TEST(CV_ArucoDetectMarkers, custom_test)
+{
+    string imgPath = "D:\\ITLab\\Python\\pictures\\rects2.png";
+    Mat img = imread(imgPath);
+
+    aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
+   
+
+    // new version
+    vector<vector<Point2f>> corners;
+    detector.detectRectangleMarkersNew(img, corners);
+    cv::aruco::drawDetectedMarkers(img, corners);
+    cv::imshow("img", img);
+    waitKey(0);
+    cout << '1' << endl;
+}
+
 INSTANTIATE_TEST_CASE_P(
         CV_ArucoDetectMarkers, ArucoThreading,
         ::testing::Values(

@@ -10,6 +10,9 @@
 #include "apriltag/apriltag_quad_thresh.hpp"
 #include "aruco_utils.hpp"
 #include <cmath>
+#include <fstream>
+#include <iostream>
+#include <iomanip>
 
 namespace cv {
 namespace aruco {
@@ -158,6 +161,8 @@ static void _findMarkerContours(const Mat &in, vector<vector<Point2f> > &candida
         approxPolyDP(contours[i], approxCurve, double(contours[i].size()) * accuracyRate, true);
         if(approxCurve.size() != 4 || !isContourConvex(approxCurve)) continue;
 
+
+
         // check min distance between corners
         double minDistSq = max(in.cols, in.rows) * max(in.cols, in.rows);
         for(int j = 0; j < 4; j++) {
@@ -193,6 +198,130 @@ static void _findMarkerContours(const Mat &in, vector<vector<Point2f> > &candida
 
 //              ***********************************************************
 //              ***********************************************************
+
+static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Point>& approxCurve, int side = 4)
+{
+
+
+    vector<Point> hull1;
+    cv::convexHull(contour, hull1);
+    vector<Point2f> hull(hull1.size());
+    for (int i = 0; i < hull1.size(); ++i)
+    {
+        Point2f tmp(hull1[i].x, hull1[i].y);
+        hull[i] = tmp;
+    }
+    Mat t1, t2;
+    in.copyTo(t1);
+    in.copyTo(t2);
+    
+    // std::fstream myfile("D:\\ITLab\\Python\\PureCV\\cpp.txt");
+    // std::fstream myfile1("D:\\ITLab\\Python\\PureCV\\cpp2.txt");
+    // iterative reduction of vertices
+    while (hull.size() > side)
+    {
+        vector<Point2f> best_candidate(hull.size()-1);
+        double best_area = in.rows * in.cols + 1;                           // наибольшая площадь, как INF для поиска минимума
+        size_t last_dot = -1;
+        // for all edges in hull ( <edge_idx_1>, <edge_idx_2> ) ->
+        for (size_t edge_idx_1 = 0; edge_idx_1 < hull.size(); ++edge_idx_1)
+        {
+            size_t edge_idx_2 = (edge_idx_1 + 1) % hull.size();
+
+            size_t adj_idx_1 = (edge_idx_1 - 1 + hull.size()) % hull.size();
+            size_t adj_idx_2 = (edge_idx_1 + 2) % hull.size();
+
+            Point2f edge_pt_1 = hull[edge_idx_1];
+            Point2f edge_pt_2 = hull[edge_idx_2];
+            Point2f adj_pt_1 = hull[adj_idx_1];
+            Point2f adj_pt_2 = hull[adj_idx_2];
+
+            Point2f edge1 = edge_pt_1 - adj_pt_1;
+            Point2f edge2 = edge_pt_2 - edge_pt_1;
+            Point2f edge3 = adj_pt_2 - edge_pt_2;
+
+            double dotProduct = edge1.x * edge2.x + edge1.y * edge2.y;
+            double edge1Length = sqrt(edge1.x * edge1.x + edge1.y * edge1.y);
+            double edge2Length = sqrt(edge2.x * edge2.x + edge2.y * edge2.y);
+            double angle1 = acos(dotProduct / (edge1Length * edge2Length));
+
+            dotProduct = edge2.x * edge3.x + edge2.y * edge3.y;
+            edge1Length = sqrt(edge3.x * edge3.x + edge3.y * edge3.y);
+            edge2Length = sqrt(edge2.x * edge2.x + edge2.y * edge2.y);
+            double angle2 = acos(dotProduct / (edge1Length * edge2Length));
+
+
+            // we need to first make sure that the sum of the interior angles the edge
+            // makes with the two adjacent edges is more than 180°
+            if (angle1 + angle2 > CV_PI)
+            {
+                continue;
+            }
+
+
+            // параллельные прямые (случай если бы берем любые 3 подряд идущие вершины квадрата) 
+            if (edge1.y * edge3.x - edge1.x * edge3.y == 0) continue;
+
+            // Точка пересечения выводится геометрически (можно показать это)
+            double new_x = (edge_pt_1.x * edge1.y * edge3.x - edge_pt_2.x * edge3.y * edge1.x + edge1.x * edge3.x * (edge_pt_2.y - edge_pt_1.y))
+                / (edge1.y * edge3.x - edge1.x * edge3.y);
+            double new_y;
+
+            if (edge1.x != 0)
+            {
+                new_y = ((new_x - edge_pt_1.x) * edge1.y + edge_pt_1.y * edge1.x) / edge1.x;
+            }
+            else
+            {
+                new_y = (edge3.y) * (edge_pt_1.x - edge_pt_2.x) / (edge3.x) + edge_pt_2.y;
+            }
+
+            Point2f intersect(new_x, new_y);
+
+            double area = 0.5 * abs((edge_pt_2.x - edge_pt_1.x) * (new_y - edge_pt_1.y) - (new_x - edge_pt_1.x) * (edge_pt_2.y - edge_pt_1.y));
+
+            // Мне не нравиться этот if 
+            if (area - best_area >= 0.0001)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < edge_idx_1; ++i)
+            {
+                best_candidate[i] = hull[i];
+            }
+            if (edge_idx_1 != hull.size() - 1) {
+                best_candidate[edge_idx_1] = intersect;
+                for (int i = edge_idx_2 + 1; i < hull.size(); ++i)
+                {
+                    best_candidate[i - 1] = hull[i];
+                }
+            }
+            best_area = area;
+            last_dot = edge_idx_1;
+            
+            //myfile1 << setprecision(5) << area << "  " << edge_idx_1 << endl;
+        }
+
+        if (best_candidate == vector<Point2f>(hull.size()-1))
+        {
+            // Some assert i dont know how to use CV_Assert now
+            throw "sad :(";
+        }
+        //myfile << last_dot << endl;
+        hull.assign(begin(best_candidate), end(best_candidate));
+    }
+    for (int i = 0; i < hull.size(); ++i)
+    {
+        Point tmp(hull[i].x, hull[i].y);
+        approxCurve.push_back(tmp);
+    }
+    //myfile.close();
+    //myfile1.close();
+    return;
+}
+
+
 static void _findMarkerRectangleContoursNew(const Mat& in, vector<vector<Point2f> >& candidates,
     vector<vector<Point> >& contoursOut, double minPerimeterRate,
     double maxPerimeterRate, double accuracyRate,
@@ -213,17 +342,22 @@ static void _findMarkerRectangleContoursNew(const Mat& in, vector<vector<Point2f
     }
 
     vector<vector<Point> > contours;
-    findContours(in, contours, RETR_LIST, CHAIN_APPROX_NONE);
+    findContours(in, contours, RETR_TREE, CHAIN_APPROX_SIMPLE);
     // now filter list of contours
     for (unsigned int i = 0; i < contours.size(); i++) {
         // check perimeter
-        if (contours[i].size() < minPerimeterPixels || contours[i].size() > maxPerimeterPixels)
-            continue;
+        //if (contours[i].size() < minPerimeterPixels || contours[i].size() > maxPerimeterPixels)
+        //    continue;
 
         // check is square and is convex
         vector<Point> approxCurve;
-        approxPolyDP(contours[i], approxCurve, double(contours[i].size()) * accuracyRate, true);
-        if (approxCurve.size() != 4 || !isContourConvex(approxCurve)) continue;
+        //              **********************************************
+        _approxMinPolygon(in, contours[i], approxCurve);
+
+
+
+
+        //              **********************************************
 
         // check min distance between corners
         double minDistSq = max(in.cols, in.rows) * max(in.cols, in.rows);
@@ -404,6 +538,7 @@ static void _detectInitialRectangleCandidatesNew(const Mat& grey, vector<vector<
     vector<vector<vector<Point2f> > > candidatesArrays((size_t)nScales);
     vector<vector<vector<Point> > > contoursArrays((size_t)nScales);
 
+    setNumThreads(1);
     ////for each value in the interval of thresholding window sizes
     parallel_for_(Range(0, nScales), [&](const Range& range) {
         const int begin = range.start;
@@ -413,7 +548,7 @@ static void _detectInitialRectangleCandidatesNew(const Mat& grey, vector<vector<
             int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
             // threshold
             Mat thresh;
-            _threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
+            threshold(grey, thresh, 100, 255, THRESH_BINARY);
 
             // detect rectangles
             _findMarkerRectangleContoursNew(thresh, candidatesArrays[i], contoursArrays[i],
@@ -1209,7 +1344,7 @@ void ArucoDetector::detectRectangleMarkersNew(InputArray _image, OutputArrayOfAr
     }
 
     /// STEP 2.c FILTER OUT NEAR CANDIDATE PAIRS
-    auto selectedCandidates = arucoDetectorImpl->filterTooCloseCandidates(candidates, contours);
+    //auto selectedCandidates = arucoDetectorImpl->filterTooCloseCandidates(candidates, contours);
 
     // copy to output arrays
     _copyVector2Output(candidates, _corners);
