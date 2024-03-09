@@ -202,26 +202,29 @@ static void _findMarkerContours(const Mat &in, vector<vector<Point2f> > &candida
 static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Point>& approxCurve, int side = 4)
 {
 
-
+    
     vector<Point> hull1;
     cv::convexHull(contour, hull1);
-    vector<Point2f> hull(hull1.size());
+    vector<Point2d> hull(hull1.size());
     for (int i = 0; i < hull1.size(); ++i)
     {
-        Point2f tmp(hull1[i].x, hull1[i].y);
+        Point2d tmp(hull1[i].x, hull1[i].y);
         hull[i] = tmp;
     }
     Mat t1, t2;
     in.copyTo(t1);
     in.copyTo(t2);
     
-    // std::fstream myfile("D:\\ITLab\\Python\\PureCV\\cpp.txt");
-    // std::fstream myfile1("D:\\ITLab\\Python\\PureCV\\cpp2.txt");
+    int c = 1;
+    std::ofstream myfile1("D:\\ITLab\\Python\\PureCV\\cpp2.txt");
+    myfile1 << "\n\n new_contour ******** \n\n ";
     // iterative reduction of vertices
     while (hull.size() > side)
     {
-        vector<Point2f> best_candidate(hull.size()-1);
-        double best_area = in.rows * in.cols + 1;                           // наибольшая площадь, как INF для поиска минимума
+        myfile1 << "\n" << c << endl;
+        c++;
+        vector<Point2d> best_candidate(hull.size()-1);
+        double best_area = LONG_MAX;                           // наибольшая площадь, как INF для поиска минимума
         size_t last_dot = -1;
         // for all edges in hull ( <edge_idx_1>, <edge_idx_2> ) ->
         for (size_t edge_idx_1 = 0; edge_idx_1 < hull.size(); ++edge_idx_1)
@@ -231,24 +234,24 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
             size_t adj_idx_1 = (edge_idx_1 - 1 + hull.size()) % hull.size();
             size_t adj_idx_2 = (edge_idx_1 + 2) % hull.size();
 
-            Point2f edge_pt_1 = hull[edge_idx_1];
-            Point2f edge_pt_2 = hull[edge_idx_2];
-            Point2f adj_pt_1 = hull[adj_idx_1];
-            Point2f adj_pt_2 = hull[adj_idx_2];
+            Point2d edge_pt_1 = hull[edge_idx_1];
+            Point2d edge_pt_2 = hull[edge_idx_2];
+            Point2d adj_pt_1 = hull[adj_idx_1];
+            Point2d adj_pt_2 = hull[adj_idx_2];
 
-            Point2f edge1 = edge_pt_1 - adj_pt_1;
-            Point2f edge2 = edge_pt_2 - edge_pt_1;
-            Point2f edge3 = adj_pt_2 - edge_pt_2;
+            Point2d edge1 = edge_pt_1 - adj_pt_1;
+            Point2d edge2 = edge_pt_2 - edge_pt_1;
+            Point2d edge3 = adj_pt_2 - edge_pt_2;
 
-            double dotProduct = edge1.x * edge2.x + edge1.y * edge2.y;
-            double edge1Length = sqrt(edge1.x * edge1.x + edge1.y * edge1.y);
-            double edge2Length = sqrt(edge2.x * edge2.x + edge2.y * edge2.y);
-            double angle1 = acos(dotProduct / (edge1Length * edge2Length));
+            long double dotProduct = edge1.x * edge2.x + edge1.y * edge2.y;
+            long double edge1Length = sqrt(edge1.x * edge1.x + edge1.y * edge1.y);
+            long double edge2Length = sqrt(edge2.x * edge2.x + edge2.y * edge2.y);
+            long double angle1 = acos(dotProduct / (edge1Length * edge2Length));
 
             dotProduct = edge2.x * edge3.x + edge2.y * edge3.y;
             edge1Length = sqrt(edge3.x * edge3.x + edge3.y * edge3.y);
             edge2Length = sqrt(edge2.x * edge2.x + edge2.y * edge2.y);
-            double angle2 = acos(dotProduct / (edge1Length * edge2Length));
+            long double angle2 = acos(dotProduct / (edge1Length * edge2Length));
 
 
             // we need to first make sure that the sum of the interior angles the edge
@@ -263,9 +266,9 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
             if (edge1.y * edge3.x - edge1.x * edge3.y == 0) continue;
 
             // Точка пересечения выводится геометрически (можно показать это)
-            double new_x = (edge_pt_1.x * edge1.y * edge3.x - edge_pt_2.x * edge3.y * edge1.x + edge1.x * edge3.x * (edge_pt_2.y - edge_pt_1.y))
+            long double new_x = (edge_pt_1.x * edge1.y * edge3.x - edge_pt_2.x * edge3.y * edge1.x + edge1.x * edge3.x * (edge_pt_2.y - edge_pt_1.y))
                 / (edge1.y * edge3.x - edge1.x * edge3.y);
-            double new_y;
+            long double new_y;
 
             if (edge1.x != 0)
             {
@@ -276,39 +279,47 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
                 new_y = (edge3.y) * (edge_pt_1.x - edge_pt_2.x) / (edge3.x) + edge_pt_2.y;
             }
 
-            Point2f intersect(new_x, new_y);
+            Point2d intersect(new_x, new_y);
 
-            double area = 0.5 * abs((edge_pt_2.x - edge_pt_1.x) * (new_y - edge_pt_1.y) - (new_x - edge_pt_1.x) * (edge_pt_2.y - edge_pt_1.y));
+            long double area = 0.5 * abs((edge_pt_2.x - edge_pt_1.x) * (new_y - edge_pt_1.y) - (new_x - edge_pt_1.x) * (edge_pt_2.y - edge_pt_1.y));
 
             // Мне не нравиться этот if 
-            if (area - best_area >= 0.0001)
+            if (area >= best_area)
             {
                 continue;
             }
 
-            for (int i = 0; i < edge_idx_1; ++i)
-            {
-                best_candidate[i] = hull[i];
-            }
             if (edge_idx_1 != hull.size() - 1) {
+                for (int i = 0; i < edge_idx_1; ++i)
+                {
+                    best_candidate[i] = hull[i];
+                }
                 best_candidate[edge_idx_1] = intersect;
                 for (int i = edge_idx_2 + 1; i < hull.size(); ++i)
                 {
                     best_candidate[i - 1] = hull[i];
                 }
             }
+            else
+            {
+                for (int i = 1; i < edge_idx_1; ++i)
+                {
+                    best_candidate[i - 1] = hull[i];
+                }
+                best_candidate[edge_idx_1-1] = intersect;
+            }
             best_area = area;
             last_dot = edge_idx_1;
             
-            //myfile1 << setprecision(5) << area << "  " << edge_idx_1 << endl;
+            myfile1 << area << "  " << edge_idx_1 << endl;
         }
 
-        if (best_candidate == vector<Point2f>(hull.size()-1))
+        if (best_candidate == vector<Point2d>(hull.size()-1))
         {
             // Some assert i dont know how to use CV_Assert now
             throw "sad :(";
         }
-        //myfile << last_dot << endl;
+        myfile1 << last_dot << endl;
         hull.assign(begin(best_candidate), end(best_candidate));
     }
     for (int i = 0; i < hull.size(); ++i)
@@ -316,8 +327,8 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
         Point tmp(hull[i].x, hull[i].y);
         approxCurve.push_back(tmp);
     }
-    //myfile.close();
-    //myfile1.close();
+   
+    myfile1.close();
     return;
 }
 
@@ -350,6 +361,7 @@ static void _findMarkerRectangleContoursNew(const Mat& in, vector<vector<Point2f
         //    continue;
 
         // check is square and is convex
+       
         vector<Point> approxCurve;
         //              **********************************************
         _approxMinPolygon(in, contours[i], approxCurve);

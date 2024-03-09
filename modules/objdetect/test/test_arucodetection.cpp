@@ -769,7 +769,7 @@ TEST(CV_ArucoDetectMarkers, custom_test1)
 
 TEST(CV_ArucoDetectMarkers, custom_test)
 {
-    string imgPath = "D:\\ITLab\\Python\\pictures\\rects2.png";
+    string imgPath = "D:\\ITLab\\Python\\pictures\\stack_overflow.png";
     Mat img = imread(imgPath);
 
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
