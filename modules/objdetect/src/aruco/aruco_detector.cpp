@@ -353,23 +353,15 @@ static void _findMarkerRectangleContoursNew(const Mat& in, vector<vector<Point2f
     }
 
     vector<vector<Point> > contours;
-    findContours(in, contours, RETR_TREE, CHAIN_APPROX_SIMPLE);
+    findContours(in, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
     // now filter list of contours
     for (unsigned int i = 0; i < contours.size(); i++) {
         // check perimeter
-        //if (contours[i].size() < minPerimeterPixels || contours[i].size() > maxPerimeterPixels)
-        //    continue;
-
-        // check is square and is convex
+        if (arcLength(contours[i], true) < 85) continue;
        
         vector<Point> approxCurve;
-        //              **********************************************
         _approxMinPolygon(in, contours[i], approxCurve);
 
-
-
-
-        //              **********************************************
 
         // check min distance between corners
         double minDistSq = max(in.cols, in.rows) * max(in.cols, in.rows);
