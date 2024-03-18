@@ -5,6 +5,10 @@
 #include "test_precomp.hpp"
 #include "opencv2/objdetect/aruco_detector.hpp"
 #include "opencv2/calib3d.hpp"
+#include <iostream>
+#include <filesystem>
+#include <fstream>
+#include <opencv2/imgcodecs.hpp>
 
 namespace opencv_test { namespace {
 
@@ -718,58 +722,9 @@ TEST_P(ArucoThreading, number_of_threads_does_not_change_results)
     }
 }
 
-TEST(CV_ArucoDetectMarkers, custom_test1)
+TEST(CV_ArucoDetectMarkers, custom_test2)
 {
-    string imgPath = "D:\\ITLab\\Python\\pictures\\rects1.png";
-
-    Mat img = imread(imgPath), img_for_marker;
-    img.copyTo(img_for_marker);
-   
-
-    Mat with_contours;
-    img.copyTo(with_contours);
-    cv::cvtColor(img, with_contours, COLOR_BGR2GRAY);
-    
-
-    cv::threshold(with_contours, with_contours, 100, 255, THRESH_BINARY);
-    cv::imshow("BINARY", with_contours);
-
-    vector<vector<Point>> all_contours;
-    Scalar pink(255, 10, 255);
-    findContours(with_contours, all_contours, RETR_LIST, CHAIN_APPROX_NONE);
-    cv::drawContours(img, all_contours, -1, pink, 2);
-    cv::imshow("contours", img);
-
-    vector<vector<Point>> good_contours, rej_contours;
-    for (int contour = 0; contour < all_contours.size(); ++contour)
-    {
-        RotatedRect rectangle = minAreaRect(all_contours[contour]);
-        vector<Point2f> points;
-        rectangle.points(points);
-       
-      
-        vector<vector<cv::Point>> corners(1);
-        for (const auto& point : points) {
-            corners[0].push_back(point);
-        }
-
-        cv::aruco::drawDetectedMarkers(img_for_marker, corners);
-
-    }
-    cv::imshow("marker", img_for_marker);
-    // new version
-
-
-
-    if ((waitKey(0) & 0xFF) == 27)
-    {
-        return;
-    }
-}
-
-TEST(CV_ArucoDetectMarkers, custom_test)
-{
-    string imgPath = "D:\\ITLab\\Python\\pictures\\stack_overflow.png";
+    string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects1.png";
     Mat img = imread(imgPath);
 
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
@@ -777,12 +732,109 @@ TEST(CV_ArucoDetectMarkers, custom_test)
 
     // new version
     vector<vector<Point2f>> corners;
-    detector.detectRectangleMarkersNew(img, corners);
+    //detector.detectRectangleMarkersNew(img, corners);
+    detector.detectRectangleMarkers(img, corners);
     cv::aruco::drawDetectedMarkers(img, corners);
     cv::imshow("img", img);
     waitKey(0);
     cout << '1' << endl;
 }
+
+TEST(CV_ArucoDetectMarkers, custom_test1)
+{
+    string dir = "D:\\ITLab\\Python\\pictures\\";
+    string images_dir = dir + "images\\";
+    vector<string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(images_dir)) {
+        files.push_back(entry.path().filename().string());
+    }
+
+    sort(files.begin(), files.end());
+    for (const string& path : files)
+    {
+        Mat img = imread(images_dir  + path);
+
+        string out_path(dir + "n3\\");
+        int i = 0; while (path[i] != '.') { out_path += path[i]; i++; } out_path += "_best.txt";
+
+        std::ofstream out(out_path);
+        aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
+
+        vector<vector<Point2f>> corners;
+        detector.detectRectangleMarkers(img, corners);
+        cv::aruco::drawDetectedMarkers(img, corners);
+
+        out << corners.size() << endl;
+        for (int i = 0; i < corners.size(); ++i)
+        {
+            out << corners[i].size() << endl;
+            for (int j = 0; j < corners[i].size(); ++j)
+            {
+                out << corners[i][j] << " ";
+            }
+            out <<  endl;
+        }
+        out.close();
+    }
+}
+
+TEST(CV_ArucoDetectMarkers, custom_test)
+{
+    string dir = "D:\\ITLab\\Python\\pictures\\";
+    string images_dir = dir + "images\\";
+    vector<string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(images_dir)) {
+        files.push_back(entry.path().filename().string());
+    }
+
+    sort(files.begin(), files.end());
+    for (const string& path : files)
+    {
+        string old_version(dir + "n3\\");
+        string new_version(dir + "n3\\");
+        int i = 0; while (path[i] != '.') { old_version += path[i]; i++; } old_version += ".txt";
+        i = 0; while (path[i] != '.') { new_version += path[i]; i++; } new_version += "_best.txt";
+
+        std::fstream old(old_version), nw(new_version);
+        int f = 0;
+        int n1, n2; old >> n1; nw >> n2;
+        if (n1 != n2)
+        {
+            cout << "Different count of contours: " << path << endl;
+            continue;
+            f = 1;
+        }
+        for (i = 0; i < n1; i++)
+        {
+            int n3, n4; old >> n3; nw >> n4;
+            if (n3 != n4)
+            {
+                cout << "Different sizes of contour (2 level): " << path << endl;
+                f = 1;
+                break;
+            }
+            for (int j = 0; j < n3; j++)
+            {
+                string s1, s2; std::getline(old, s1); std::getline(nw, s2);
+                if (s1 != s2)
+                {
+                    cout << "Different dots: " << path << endl;
+                    f = 1;
+                    break;
+                }
+            }
+            if (f)
+            {
+                break;
+            }
+        }
+        if (!f)
+        {
+            cout << path << "  is OK" << endl;
+        }
+    }
+}
+
 
 INSTANTIATE_TEST_CASE_P(
         CV_ArucoDetectMarkers, ArucoThreading,
