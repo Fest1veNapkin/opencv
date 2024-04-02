@@ -309,11 +309,8 @@ public:
                                OutputArrayOfArrays rejectedImgPoints = noArray()) const;
 
 
-
     CV_WRAP void detectRectangleMarkers(InputArray _image, OutputArrayOfArrays _corners) const;
 
-
-    CV_WRAP void detectRectangleMarkersNew(InputArray _image, OutputArrayOfArrays _corners) const;
 
     /** @brief Refine not detected markers based on the already detected and the board layout
      *

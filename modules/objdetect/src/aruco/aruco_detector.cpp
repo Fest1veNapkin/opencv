@@ -198,253 +198,6 @@ namespace cv {
             }
         }
 
-        //              ***********************************************************
-        //              ***********************************************************
-        static int _recalculation1(const vector<Point2d>& float_hull, int vertex_id, long double& area_, long double& x, long double& y, int size)
-        {
-            // we want to merge vertex and next_vertex, we need extra_vertex_1 and extra_vertex_2 and all three edges for find intersect point
-            Point2d vertex = float_hull[vertex_id],
-                next_vertex = float_hull[(vertex_id + 1) % size],
-                extra_vertex_1 = float_hull[(vertex_id - 1 + size) % size],
-                extra_vertex_2 = float_hull[(vertex_id + 2) % size];
-
-            Point2d curr_edge = next_vertex - vertex,
-                prev_edge = vertex - extra_vertex_1,
-                next_edge = extra_vertex_2 - next_vertex;
-
-            // calculation angles between curr_edge and next_edge, curr_edge and prev_edge
-            long double dot_product = prev_edge.x * curr_edge.x + prev_edge.y * curr_edge.y,
-                prev_edge_length = sqrt(prev_edge.x * prev_edge.x + prev_edge.y * prev_edge.y),
-                curr_edge_length = sqrt(curr_edge.x * curr_edge.x + curr_edge.y * curr_edge.y);
-
-            long double angle1 = acos(dot_product / (prev_edge_length * curr_edge_length));
-
-            dot_product = curr_edge.x * next_edge.x + curr_edge.y * next_edge.y;
-            prev_edge_length = sqrt(next_edge.x * next_edge.x + next_edge.y * next_edge.y);
-
-            long double angle2 = acos(dot_product / (prev_edge_length * curr_edge_length));
-
-            // we need to first make sure that the sum of the interior angles the edge
-            // makes with the two adjacent edges is more than 180°
-            if (angle1 + angle2 > CV_PI)
-            {
-                return -1;
-            }
-
-            if (prev_edge.y * next_edge.x - prev_edge.x * next_edge.y == 0) return -1;
-
-            // intersect coordinates
-            long double new_x = (vertex.x * prev_edge.y * next_edge.x - next_vertex.x * next_edge.y * prev_edge.x + prev_edge.x * next_edge.x *
-                (next_vertex.y - vertex.y)) / (prev_edge.y * next_edge.x - prev_edge.x * next_edge.y);
-
-            long double new_y;
-
-            if (prev_edge.x != 0)
-            {
-                new_y = ((new_x - vertex.x) * prev_edge.y + vertex.y * prev_edge.x) / prev_edge.x;
-            }
-            else
-            {
-                new_y = (next_edge.y) * (vertex.x - next_vertex.x) / (next_edge.x) + next_vertex.y;
-            }
-            // calculate triangle area (vertex, next_vertex and intersect (new_x, new_y) )
-            long double area = 0.5 * abs((next_vertex.x - vertex.x) * (new_y - vertex.y) - (new_x - vertex.x) * (next_vertex.y - vertex.y));
-
-            // it is not really good, however prev_edge.x can be ~ 0.0000001 cuz we have double digits 
-            if (area == 0)
-            {
-                new_y = (next_edge.y) * (vertex.x - next_vertex.x) / (next_edge.x) + next_vertex.y;
-                area = 0.5 * abs((next_vertex.x - vertex.x) * (new_y - vertex.y) - (new_x - vertex.x) * (next_vertex.y - vertex.y));
-            }
-
-            // returns value
-            area_ = area;
-            x = new_x;
-            y = new_y;
-            return 0;
-        }
-        static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Point>& approxCurve, int side = 4)
-        {
-            vector<Point> hull;
-            cv::convexHull(contour, hull);
-
-            // we need to check a size of the hull
-            if (hull.size() < side)
-            {
-                return;
-            }
-
-
-            vector<Point2d> float_hull(hull.size());
-            for (int i = 0; i < float_hull.size(); ++i)
-            {
-                Point2d tmp(hull[i].x, hull[i].y);
-                float_hull[i] = tmp;
-            }
-            size_t size = float_hull.size();
-            //ofstream file("D:\\ITLab\\test\\set.txt");
-            //vector[i] = {area, intersect}: i - number of vertex (edge),
-            // area - triangle area which we should add after removing i vertex
-            // intersect - point which we`ll replace i vertex  (and remove (i+1) % size)
-            vector<pair<long double, Point2d>> change(float_hull.size());
-
-            // calculate all areas for the first time
-            for (int vertex_id = 0; vertex_id < size; ++vertex_id)
-            {
-                long double area, new_x, new_y;
-
-                if (_recalculation1(float_hull, vertex_id, area, new_x, new_y, size) == -1)
-                {
-                    area = LONG_MAX;
-                    new_x = -1; new_y = -1;
-                }
-
-                // push to change
-                Point2d intersect(new_x, new_y);
-                change[vertex_id] = { area, intersect };
-            }
-            
-            while (size != side)
-            {
-                // vertex with min area (we`ll find it to delete i+1 vertex)
-                int vertex_id = 0;
-
-                long double min = INT_MAX;
-                for (int i = 0; i < size; i++)
-                {
-                    if (change[i].first < min)
-                    {
-                        vertex_id = i;
-                        min = change[i].first;
-                    }
-                }
-
-                // shifting elements
-                size--;
-                //file << (vertex_id + 1) % size << " " << change[vertex_id].second << " " << min << endl;
-                if (vertex_id != size) {
-                    
-                    float_hull[vertex_id] = change[vertex_id].second;
-                    for (int i = vertex_id + 1; i < size; i++)
-                    {
-                        float_hull[i] = float_hull[i + 1];
-                        change[i] = change[i + 1];
-                    }
-                }
-                else
-                {
-                    for (int i = 1; i < vertex_id; ++i)
-                    {
-                        float_hull[i - 1] = float_hull[i];
-                        change[i - 1] = change[i];
-                    }
-                    float_hull[size - 1] = change[vertex_id].second;
-                }
-
-                // updating previous, current and next vertex(edges)
-                // if vertex_id == size we gonna remove first element --> we need to update new next after first
-                if (vertex_id == size)
-                {
-                    int cur_id = (((vertex_id - 2) % size) + size) % size;
-                    long double area, new_x, new_y;
-                    // todo need to test it
-                    if (_recalculation1(float_hull, cur_id, area, new_x, new_y, size) == -1)
-                    {
-                        area = LONG_MAX;
-                        new_x = -1; new_y = -1;
-                    }
-                    Point2d intersect(new_x, new_y);
-                    change[cur_id] = { area, intersect };
-                }
-                for (int i = -1; i < 2; i++)
-                {
-                    int cur_id = ((vertex_id + i) + size) % size;
-                    long double area, new_x, new_y;
-                    // todo need to test it
-                    if (_recalculation1(float_hull, cur_id, area, new_x, new_y, size) == -1)
-                    {
-                        area = LONG_MAX;
-                        new_x = -1; new_y = -1;
-                    }
-                    Point2d intersect(new_x, new_y);
-                    change[cur_id] = { area, intersect };
-                }
-            }
-            // push to results to approxCurve
-            for (int i = 0; i < size; ++i)
-            {
-                Point tmp(float_hull[i].x, float_hull[i].y);
-                approxCurve.push_back(tmp);
-            }
-            return;
-        }
-
-
-
-
-        static void _findMarkerRectangleContoursNew(const Mat& in, vector<vector<Point2f> >& candidates,
-            vector<vector<Point> >& contoursOut, double minPerimeterRate,
-            double maxPerimeterRate, double accuracyRate,
-            double minCornerDistanceRate, int minDistanceToBorder, int minSize) {
-
-            CV_Assert(minPerimeterRate > 0 && maxPerimeterRate > 0 && accuracyRate > 0 &&
-                minCornerDistanceRate >= 0 && minDistanceToBorder >= 0);
-
-            // calculate maximum and minimum sizes in pixels
-            unsigned int minPerimeterPixels =
-                (unsigned int)(minPerimeterRate * max(in.cols, in.rows));
-            unsigned int maxPerimeterPixels =
-                (unsigned int)(maxPerimeterRate * max(in.cols, in.rows));
-
-            // for aruco3 functionality
-            if (minSize != 0) {
-                minPerimeterPixels = 4 * minSize;
-            }
-
-            vector<vector<Point> > contours;
-            findContours(in, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
-            // now filter list of contours
-            for (unsigned int i = 0; i < contours.size(); i++) {
-                // check perimeter
-                if (arcLength(contours[i], true) < 85) continue;
-                if (contours[i].size() != 184) continue;
-                vector<Point> approxCurve;
-                _approxMinPolygon(in, contours[i], approxCurve);
-
-
-                // check min distance between corners
-                double minDistSq = max(in.cols, in.rows) * max(in.cols, in.rows);
-                for (int j = 0; j < 4; j++) {
-                    double d = (double)(approxCurve[j].x - approxCurve[(j + 1) % 4].x) *
-                        (double)(approxCurve[j].x - approxCurve[(j + 1) % 4].x) +
-                        (double)(approxCurve[j].y - approxCurve[(j + 1) % 4].y) *
-                        (double)(approxCurve[j].y - approxCurve[(j + 1) % 4].y);
-                    minDistSq = min(minDistSq, d);
-                }
-                double minCornerDistancePixels = double(contours[i].size()) * minCornerDistanceRate;
-                if (minDistSq < minCornerDistancePixels * minCornerDistancePixels) continue;
-
-                // check if it is too near to the image border
-                bool tooNearBorder = false;
-                for (int j = 0; j < 4; j++) {
-                    if (approxCurve[j].x < minDistanceToBorder || approxCurve[j].y < minDistanceToBorder ||
-                        approxCurve[j].x > in.cols - 1 - minDistanceToBorder ||
-                        approxCurve[j].y > in.rows - 1 - minDistanceToBorder)
-                        tooNearBorder = true;
-                }
-                if (tooNearBorder) continue;
-
-                // if it passes all the test, add to candidates vector
-                vector<Point2f> currentCandidate;
-                currentCandidate.resize(4);
-                for (int j = 0; j < 4; j++) {
-                    currentCandidate[j] = Point2f((float)approxCurve[j].x, (float)approxCurve[j].y);
-                }
-                candidates.push_back(currentCandidate);
-                contoursOut.push_back(contours[i]);
-            }
-        }
-
         struct neighbours
         {
             // if we`ve removed this element relevant = -1, 0 if we need to recalculate it 
@@ -454,6 +207,7 @@ namespace cv {
             int prev;
             neighbours(int next_ = -1, int prev_ = -1, Point2d point_ = {-1, -1}, bool relevant_ = 1) : next(next_), prev(prev_), point(point_), relevant(relevant_) {}
         };
+
 
         struct changes
         {
@@ -471,6 +225,7 @@ namespace cv {
             }
         };
 
+
         static int _recalculation(const vector<neighbours>& hull, int vertex_id, long double& area_, long double& x, long double& y, int size)
         {
             // we want to merge vertex and next_vertex, we need extra_vertex_1 and extra_vertex_2 and all three edges for find intersect point
@@ -482,25 +237,6 @@ namespace cv {
             Point2d curr_edge = next_vertex - vertex,
                 prev_edge = vertex - extra_vertex_1,
                 next_edge = extra_vertex_2 - next_vertex;
-
-            // calculation angles between curr_edge and next_edge, curr_edge and prev_edge
-            long double dot_product = prev_edge.x * curr_edge.x + prev_edge.y * curr_edge.y,
-                prev_edge_length = sqrt(prev_edge.x * prev_edge.x + prev_edge.y * prev_edge.y),
-                curr_edge_length = sqrt(curr_edge.x * curr_edge.x + curr_edge.y * curr_edge.y);
-
-            long double angle1 = acos(dot_product / (prev_edge_length * curr_edge_length));
-
-            dot_product = curr_edge.x * next_edge.x + curr_edge.y * next_edge.y;
-            prev_edge_length = sqrt(next_edge.x * next_edge.x + next_edge.y * next_edge.y);
-
-            long double angle2 = acos(dot_product / (prev_edge_length * curr_edge_length));
-
-            // we need to first make sure that the sum of the interior angles the edge
-            // makes with the two adjacent edges is more than 180°
-            if (angle1 + angle2 > CV_PI)
-            {
-                return -1;
-            }
 
             if (prev_edge.y * next_edge.x - prev_edge.x * next_edge.y == 0) return -1;
 
@@ -537,11 +273,10 @@ namespace cv {
         }
 
 
-        static void update_hull(vector<neighbours>& hull, int vertex_id, int size)
+        static void _update_hull(vector<neighbours>& hull, int vertex_id, int size)
         {
             neighbours& v1 = hull[vertex_id], &removed = hull[v1.next], &v2 = hull[removed.next];
-
-                        
+                                    
             removed.relevant = -1;
             v1.relevant = 0;
             v2.relevant = 0;
@@ -549,8 +284,9 @@ namespace cv {
             v1.next = removed.next;
             v2.prev = removed.prev;
         }
-        
-        static void _approxMinPolygonHeap(const Mat& in, vector<Point>& contour, vector<Point>& approxCurve, int side = 4)
+
+
+        static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Point>& approxCurve, int side = 4)
         {
             vector<Point> temp_hull;
             cv::convexHull(contour, temp_hull);
@@ -561,9 +297,7 @@ namespace cv {
                 return;
             }
 
-            //ofstream file("D:\\ITLab\\test\\heap.txt");
             vector<neighbours> hull(temp_hull.size());
-
             for (int i = 0; i < hull.size(); ++i)
             {
                 Point2d tmp(temp_hull[i].x, temp_hull[i].y);
@@ -581,7 +315,7 @@ namespace cv {
             }
             size_t size = hull.size();
 
-            //  vector<changes> ??
+
             priority_queue<changes, vector<changes>, greater<>> areas;
             // calculate all areas for the first time
             for (int vertex_id = 0; vertex_id < size; ++vertex_id)
@@ -602,25 +336,17 @@ namespace cv {
 
             while (size != side)
             {
-                vector<pair<int, neighbours>> t;
-                for (int x = 0; x < hull.size(); x++)
-                {
-                    if (hull[x].relevant != -1)
-                    {
-                        t.push_back({ x, hull[x]});
-                    }
-                }
                 // vertex with min area
                 changes base = areas.top();
                 int vertex_id = base.vertex;
                 // checking for removed triangle
                 if (hull[vertex_id].relevant == -1)
                 {
+                    // removing it from areas
                     areas.pop();
-                    continue;
                 }
                 //checking for changed triangle
-                if (hull[vertex_id].relevant == 0)
+                else if (hull[vertex_id].relevant == 0)
                 {
                     long double area, new_x, new_y;
                     areas.pop();
@@ -635,16 +361,16 @@ namespace cv {
                     
                     areas.push(changes(area, vertex_id, intersect));
                     hull[vertex_id].relevant = 1;
-                    continue;
                 }
-                size--;
-               
-                hull[vertex_id].point = base.intersect;
-                //file << hull[vertex_id].next << " " << base.intersect << " " << base.area << endl;
-                update_hull(hull, vertex_id, size);
-                //cout << vertex_id << " " << base.area << endl;
-               
+                else
+                {
+                    // removing current relevant vertex;
+                    size--;
+                    hull[vertex_id].point = base.intersect;
+                    _update_hull(hull, vertex_id, size);
+                }
             }
+
             // push to results to approxCurve
             for (int i = 0; i < hull.size(); ++i)
             {
@@ -654,7 +380,7 @@ namespace cv {
             }
             return;
         }
-        static void _findMarkerRectangleContoursSet(const Mat& in, vector<vector<Point2f> >& candidates,
+        static void _findMarkerRectangleContours(const Mat& in, vector<vector<Point2f> >& candidates,
             vector<vector<Point> >& contoursOut, double minPerimeterRate,
             double maxPerimeterRate, double accuracyRate,
             double minCornerDistanceRate, int minDistanceToBorder, int minSize) {
@@ -679,9 +405,8 @@ namespace cv {
             for (unsigned int i = 0; i < contours.size(); i++) {
                 // check perimeter
                 if (arcLength(contours[i], true) < 85) continue;
-                //if (contours[i].size() != 184) continue;
                 vector<Point> approxCurve;
-                _approxMinPolygonHeap(in, contours[i], approxCurve);
+                _approxMinPolygon(in, contours[i], approxCurve);
 
 
                 // check min distance between corners
@@ -716,8 +441,6 @@ namespace cv {
                 contoursOut.push_back(contours[i]);
             }
         }
-        //              ***********************************************************
-        //              ***********************************************************
 
         /**
           * @brief Assure order of candidate corners is clockwise direction
@@ -843,12 +566,7 @@ namespace cv {
             }
         }
 
-
-
-        //                      ***************************************************************
-        //                      ***************************************************************
-
-        static void _detectInitialRectangleCandidatesNew(const Mat& grey, vector<vector<Point2f> >& candidates,
+        static void _detectInitialRectangleCandidates(const Mat& grey, vector<vector<Point2f> >& candidates,
             vector<vector<Point> >& contours,
             const DetectorParameters& params) {
 
@@ -862,10 +580,8 @@ namespace cv {
 
             vector<vector<vector<Point2f> > > candidatesArrays((size_t)nScales);
             vector<vector<vector<Point> > > contoursArrays((size_t)nScales);
-            setNumThreads(1);
             ////for each value in the interval of thresholding window sizes
             parallel_for_(Range(0, nScales), [&](const Range& range) {
-                setNumThreads(1);
                 const int begin = range.start;
                 const int end = range.end;
 
@@ -874,9 +590,10 @@ namespace cv {
                     // threshold
                     Mat thresh;
                     threshold(grey, thresh, 100, 255, THRESH_BINARY);
+                    //_threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
 
                     // detect rectangles
-                    _findMarkerRectangleContoursNew(thresh, candidatesArrays[i], contoursArrays[i],
+                    _findMarkerRectangleContours(thresh, candidatesArrays[i], contoursArrays[i],
                         params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
                         params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
                         params.minDistanceToBorder, params.minSideLengthCanonicalImg);
@@ -890,52 +607,6 @@ namespace cv {
                 }
             }
         }
-
-        static void _detectInitialRectangleCandidatesSet(const Mat& grey, vector<vector<Point2f> >& candidates,
-            vector<vector<Point> >& contours,
-            const DetectorParameters& params) {
-
-            CV_Assert(params.adaptiveThreshWinSizeMin >= 3 && params.adaptiveThreshWinSizeMax >= 3);
-            CV_Assert(params.adaptiveThreshWinSizeMax >= params.adaptiveThreshWinSizeMin);
-            CV_Assert(params.adaptiveThreshWinSizeStep > 0);
-
-            // number of window sizes (scales) to apply adaptive thresholding
-            int nScales = (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
-                params.adaptiveThreshWinSizeStep + 1;
-
-            vector<vector<vector<Point2f> > > candidatesArrays((size_t)nScales);
-            vector<vector<vector<Point> > > contoursArrays((size_t)nScales);
-            setNumThreads(1);
-            ////for each value in the interval of thresholding window sizes
-            parallel_for_(Range(0, nScales), [&](const Range& range) {
-                setNumThreads(1);
-                const int begin = range.start;
-                const int end = range.end;
-
-                for (int i = begin; i < end; i++) {
-                    int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
-                    // threshold
-                    Mat thresh;
-                    threshold(grey, thresh, 100, 255, THRESH_BINARY);
-
-                    // detect rectangles
-                    _findMarkerRectangleContoursSet(thresh, candidatesArrays[i], contoursArrays[i],
-                        params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
-                        params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
-                        params.minDistanceToBorder, params.minSideLengthCanonicalImg);
-                }
-                });
-            // join candidates
-            for (int i = 0; i < nScales; i++) {
-                for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
-                    candidates.push_back(candidatesArrays[i][j]);
-                    contours.push_back(contoursArrays[i][j]);
-                }
-            }
-        }
-
-        //                      ***************************************************************
-        //                      ***************************************************************
 
 
         /**
@@ -1288,15 +959,9 @@ namespace cv {
             //                      *********************************************
             //                      *********************************************
 
-            void detectRectangleCandidatesNew(const Mat& grey, vector<vector<Point2f> >& candidates, vector<vector<Point> >& contours) {
+            void detectRectangleCandidates(const Mat& grey, vector<vector<Point2f> >& candidates, vector<vector<Point> >& contours) {
                 /// 1. DETECT FIRST SET OF CANDIDATES
-                _detectInitialRectangleCandidatesNew(grey, candidates, contours, detectorParams);
-                /// 2. SORT CORNERS
-                _reorderCandidatesCorners(candidates);
-            }
-            void detectRectangleCandidatesSet(const Mat& grey, vector<vector<Point2f> >& candidates, vector<vector<Point> >& contours) {
-                /// 1. DETECT FIRST SET OF CANDIDATES
-                _detectInitialRectangleCandidatesSet(grey, candidates, contours, detectorParams);
+                _detectInitialRectangleCandidates(grey, candidates, contours, detectorParams);
                 /// 2. SORT CORNERS
                 _reorderCandidatesCorners(candidates);
             }
@@ -1643,9 +1308,6 @@ namespace cv {
             Mat(ids).copyTo(_ids);
         }
 
-        //                          **********************************************************************                      
-        //                          **********************************************************************
-
         void ArucoDetector::detectRectangleMarkers(InputArray _image, OutputArrayOfArrays _corners) const {
             CV_Assert(!_image.empty());
             DetectorParameters& detectorParams = arucoDetectorImpl->detectorParams;
@@ -1673,7 +1335,7 @@ namespace cv {
             }
             /// STEP 2.b Detect marker candidates :: traditional way
             else {
-                arucoDetectorImpl->detectRectangleCandidatesSet(grey, candidates, contours);
+                arucoDetectorImpl->detectRectangleCandidates(grey, candidates, contours);
             }
 
             /// STEP 2.c FILTER OUT NEAR CANDIDATE PAIRS
@@ -1683,53 +1345,6 @@ namespace cv {
             _copyVector2Output(candidates, _corners);
         }
 
-        //                          **********************************************************************
-        //                          **********************************************************************
-
-        void ArucoDetector::detectRectangleMarkersNew(InputArray _image, OutputArrayOfArrays _corners) const {
-
-            CV_Assert(!_image.empty());
-            DetectorParameters& detectorParams = arucoDetectorImpl->detectorParams;
-            const Dictionary& dictionary = arucoDetectorImpl->dictionary;
-
-
-            Mat grey;
-            _convertToGrey(_image, grey);
-
-            /// Step 1: create image pyramid. Section 3.4. in [1]
-            vector<Mat> grey_pyramid;
-            int closest_pyr_image_idx = 0, num_levels = 0;
-            buildPyramid(grey, grey_pyramid, num_levels);
-
-
-
-            /// STEP 2: Detect marker candidates
-            vector<vector<Point2f> > candidates;
-            vector<vector<Point> > contours;
-            vector<int> ids;
-
-            /// STEP 2.a Detect marker candidates :: using AprilTag
-            if (detectorParams.cornerRefinementMethod == (int)CORNER_REFINE_APRILTAG) {
-                _apriltag(grey, detectorParams, candidates, contours);
-            }
-            /// STEP 2.b Detect marker candidates :: traditional way
-            else {
-                arucoDetectorImpl->detectRectangleCandidatesNew(grey, candidates, contours);
-            }
-
-            /// STEP 2.c FILTER OUT NEAR CANDIDATE PAIRS
-            //auto selectedCandidates = arucoDetectorImpl->filterTooCloseCandidates(candidates, contours);
-
-            // copy to output arrays
-            _copyVector2Output(candidates, _corners);
-        }
-
-       
-
-        //                          **********************************************************************
-        //                          **********************************************************************
-        //                          **********************************************************************
-        //                          **********************************************************************
         /**
           * Project board markers that are not included in the list of detected markers
           */
