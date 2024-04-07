@@ -718,6 +718,24 @@ TEST_P(ArucoThreading, number_of_threads_does_not_change_results)
     }
 }
 
+TEST(CV_ArucoDetectMarkers, custom_test)
+{
+    string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects1.png";
+    Mat img = imread(imgPath);
+
+    aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
+
+
+    // new version
+    vector<vector<Point2f>> corners;
+    //detector.detectRectangleMarkersNew(img, corners);
+    detector.detectRectangleMarkers(img, corners);
+    cv::aruco::drawDetectedMarkers(img, corners);
+    cv::imshow("img", img);
+    waitKey(0);
+    cout << '1' << endl;
+}
+
 INSTANTIATE_TEST_CASE_P(
         CV_ArucoDetectMarkers, ArucoThreading,
         ::testing::Values(
