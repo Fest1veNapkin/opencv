@@ -195,21 +195,27 @@ static void _findMarkerContours(const Mat &in, vector<vector<Point2f> > &candida
 
 struct neighbours
 {
-    // if we`ve removed this element relevant = -1, 0 if we need to recalculate it 
+    // if we`ve removed this element relevant = -1
+    // if we need to recalculate it relevant = 0
+    // if this vertex has actual intersect relevant = 1
     short relevant;
     Point2d point;
     int next;
     int prev;
-    neighbours(int next_ = -1, int prev_ = -1, Point2d point_ = { -1, -1 }, bool relevant_ = 1) : next(next_), prev(prev_), point(point_), relevant(relevant_) {}
-};
 
+    neighbours(int next_ = -1, int prev_ = -1, Point2d point_ = { -1, -1 }, short relevant_ = 1) :
+        next(next_), prev(prev_), point(point_), relevant(relevant_) {}
+};
 
 struct changes
 {
-    long double area;
+    double area;
     int vertex;
     Point2d intersect;
-    changes(long double area_, int vertex_, Point2d intersect_) : area(area_), vertex(vertex_), intersect(intersect_) {}
+
+    changes(double area_, int vertex_, Point2d intersect_) :
+        area(area_), vertex(vertex_), intersect(intersect_) {}
+
     bool operator < (const changes& elem)
     {
         return (area < elem.area) || ((area == elem.area) && (vertex < elem.vertex));
@@ -223,9 +229,8 @@ struct changes
 /*
   returns intersect and extra area
 */
-static int _recalculation(const vector<neighbours>& hull, int vertex_id, long double& area_, long double& x, long double& y, int size)
+static int _recalculation(const vector<neighbours>& hull, int vertex_id, double& area_, double& x, double& y, int size)
 {
-    // we want to merge vertex and next_vertex, we need extra_vertex_1 and extra_vertex_2 and all three edges for find intersect point
     Point2d vertex = hull[vertex_id].point,
         next_vertex = hull[hull[vertex_id].next].point,
         extra_vertex_1 = hull[hull[vertex_id].prev].point,
@@ -235,18 +240,16 @@ static int _recalculation(const vector<neighbours>& hull, int vertex_id, long do
         prev_edge = vertex - extra_vertex_1,
         next_edge = extra_vertex_2 - next_vertex;
 
-
     // intersect
-    long double cross = prev_edge.x * next_edge.y - prev_edge.y * next_edge.x;
-    if (abs(cross) < /*EPS*/1e-8)
+    double cross = prev_edge.x * next_edge.y - prev_edge.y * next_edge.x;
+    if (abs(cross) < 1e-8)
         return -1;
 
-    long double t = (curr_edge.x * next_edge.y - curr_edge.y * next_edge.x) / cross;
+    double t = (curr_edge.x * next_edge.y - curr_edge.y * next_edge.x) / cross;
     Point2d intersect = vertex + Point2d(prev_edge.x * t, prev_edge.y * t);
 
     // calculate triangle area (vertex, next_vertex and intersect (new_x, new_y) )
-    long double area = 0.5 * abs((next_vertex.x - vertex.x) * (intersect.y - vertex.y) - (intersect.x - vertex.x) * (next_vertex.y - vertex.y));
-
+    double area = 0.5 * abs((next_vertex.x - vertex.x) * (intersect.y - vertex.y) - (intersect.x - vertex.x) * (next_vertex.y - vertex.y));
 
     // returns value
     area_ = area;
@@ -268,42 +271,36 @@ static void _update_hull(vector<neighbours>& hull, int vertex_id, int size)
     v2.prev = removed.prev;
 }
 
-
-static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Point>& approxCurve, int side = 4)
+static void _approxMinPolygon(const Mat& in, const vector<Point>& contour, vector<Point>& approxCurve, int side = 4, float max_error_percentage = -1.0)
 {
+    CV_Assert(max_error_percentage > 0 || max_error_percentage == -1);   
+    CV_Assert(side > 2);
+    CV_Assert(contour.size() > side);
+
     vector<Point> temp_hull;
     cv::convexHull(contour, temp_hull);
+    double extra_area = 0, max_extra_area = max_error_percentage * contourArea(contour);
 
     // we need to check a size of the hull
-    if (temp_hull.size() < side)
-    {
-        return;
-    }
-
+    // it should be more or equal than side
+    CV_Assert(temp_hull.size() >= side);
+ 
     vector<neighbours> hull(temp_hull.size());
     for (int i = 0; i < hull.size(); ++i)
     {
         Point2d tmp(temp_hull[i].x, temp_hull[i].y);
-        int next = i + 1, prev = i - 1;
-        if (i == 0)
-        {
-            prev = hull.size() - 1;
-        }
-        else if (i == hull.size() - 1)
-        {
-            next = 0;
-        }
-
-        hull[i] = neighbours(next, prev, tmp);
+        hull[i] = neighbours(i + 1, i - 1, tmp);
     }
+    hull[0].prev = hull.size() - 1;
+    hull[hull.size() - 1].next = 0;
+
     size_t size = hull.size();
-
-
     priority_queue<changes, vector<changes>, greater<>> areas;
+
     // calculate all areas for the first time
     for (int vertex_id = 0; vertex_id < size; ++vertex_id)
     {
-        long double area, new_x, new_y;
+        double area, new_x, new_y;
 
         if (_recalculation(hull, vertex_id, area, new_x, new_y, size) == -1)
         {
@@ -311,9 +308,8 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
             new_x = -1; new_y = -1;
         }
 
-        // push to change
-        Point2d intersect(new_x, new_y);
-        areas.push(changes(area, vertex_id, intersect));
+        // push to heap
+        areas.push(changes(area, vertex_id, {new_x, new_y}));
     }
 
 
@@ -322,16 +318,17 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
         // vertex with min area
         changes base = areas.top();
         int vertex_id = base.vertex;
-        // checking for removed triangle
+
+        // verification of a deleted vertex
         if (hull[vertex_id].relevant == -1)
         {
-            // removing it from areas
+            // pop it from areas
             areas.pop();
         }
         //checking for changed triangle
         else if (hull[vertex_id].relevant == 0)
         {
-            long double area, new_x, new_y;
+            double area, new_x, new_y;
             areas.pop();
             if (_recalculation(hull, vertex_id, area, new_x, new_y, size) == -1)
             {
@@ -339,15 +336,22 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
                 new_x = -1; new_y = -1;
             }
 
-            // push to change
-            Point2d intersect(new_x, new_y);
-
-            areas.push(changes(area, vertex_id, intersect));
+            // push to heap
+            areas.push(changes(area, vertex_id, {new_x, new_y}));
             hull[vertex_id].relevant = 1;
         }
         else
         {
-            // removing current relevant vertex;
+            if (max_error_percentage != -1)
+            {
+                extra_area += base.area;
+                if (extra_area > max_error_percentage)
+                {
+                    break;
+                }
+            }
+
+            // changing current vertex and removing the next vertex
             size--;
             hull[vertex_id].point = base.intersect;
             _update_hull(hull, vertex_id, size);
@@ -359,6 +363,7 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
     {
         if (hull[i].relevant == -1) continue;
         Point tmp(round(hull[i].point.x), round(hull[i].point.y));
+
         tmp.x = max(tmp.x, 0);
         tmp.y = max(tmp.y, 0);
 
@@ -367,7 +372,6 @@ static void _approxMinPolygon(const Mat& in, vector<Point>& contour, vector<Poin
 
         approxCurve.push_back(tmp);
     }
-    return;
 }
 static void _findMarkerRectangleContours(const Mat& in, vector<vector<Point2f> >& candidates,
     vector<vector<Point> >& contoursOut, double minPerimeterRate,
