@@ -5,6 +5,9 @@
 #include "test_precomp.hpp"
 #include "opencv2/objdetect/aruco_detector.hpp"
 #include "opencv2/calib3d.hpp"
+#include <fstream>
+#include <iostream>
+#include <filesystem>
 
 namespace opencv_test { namespace {
 
@@ -718,9 +721,9 @@ TEST_P(ArucoThreading, number_of_threads_does_not_change_results)
     }
 }
 
-TEST(CV_ArucoDetectMarkers, custom_test)
+TEST(CV_ArucoDetectMarkers, custom_test123)
 {
-    string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects1.png";
+    string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects2.png";
     Mat img = imread(imgPath);
 
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
@@ -735,7 +738,44 @@ TEST(CV_ArucoDetectMarkers, custom_test)
     waitKey(0);
     cout << '1' << endl;
 }
+TEST(CV_ArucoDetectMarkers, custom_test)
+{
+    string dir = "D:\\ITLab\\Python\\pictures\\";
+    string images_dir = dir + "images\\";
+    vector<string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(images_dir)) {
+        files.push_back(entry.path().filename().string());
+    }
 
+    sort(files.begin(), files.end());
+    for (const string& path : files)
+    {
+        Mat img = imread(images_dir + path);
+
+        string out_path(dir + "n3\\");
+        int i = 0; while (path[i] != '.') { out_path += path[i]; i++; } out_path += "_nlogn.txt";
+
+        std::ofstream out(out_path);
+        aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
+
+        vector<vector<Point2f>> corners;
+        detector.detectRectangleMarkers(img, corners);
+        cv::aruco::drawDetectedMarkers(img, corners);
+        cv::imshow("1", img);
+        waitKey(0);
+        //out << corners.size() << endl;
+        for (int i = 0; i < corners.size(); ++i)
+        {
+            //out << corners[i].size() << endl;
+            for (int j = 0; j < corners[i].size(); ++j)
+            {
+                //out << corners[i][j] << " ";
+            }
+            //out << endl;
+        }
+        //out.close();
+    }
+}
 INSTANTIATE_TEST_CASE_P(
         CV_ArucoDetectMarkers, ArucoThreading,
         ::testing::Values(
