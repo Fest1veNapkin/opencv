@@ -5,10 +5,10 @@
 #include "test_precomp.hpp"
 #include "opencv2/objdetect/aruco_detector.hpp"
 #include "opencv2/calib3d.hpp"
+#include <fstream>
 #include <iostream>
 #include <filesystem>
-#include <fstream>
-#include <opencv2/imgcodecs.hpp>
+
 
 namespace opencv_test {
     namespace {
@@ -723,9 +723,9 @@ namespace opencv_test {
             }
         }
 
-        TEST(CV_ArucoDetectMarkers, custom_test123)
+        TEST(CV_ArucoDetectMarkers, custom_test)
         {
-            string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects1.png";
+            string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects2.png";
             Mat img = imread(imgPath);
 
             aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
@@ -740,8 +740,7 @@ namespace opencv_test {
             waitKey(0);
             cout << '1' << endl;
         }
-
-        TEST(CV_ArucoDetectMarkers, custom_test)
+        TEST(CV_ArucoDetectMarkers, custom_test1)
         {
             string dir = "D:\\ITLab\\Python\\pictures\\";
             string images_dir = dir + "images\\";
@@ -753,34 +752,33 @@ namespace opencv_test {
             sort(files.begin(), files.end());
             for (const string& path : files)
             {
+                std::ofstream time("D:\\ITLab\\test\\set_time.txt", std::ios_base::app);
+                std::ofstream count_contours("D:\\ITLab\\test\\set_contours_count.txt", std::ios_base::app);
+                count_contours << path << "\n";
+                count_contours.close();
+                time << path << "\n";
+
                 Mat img = imread(images_dir + path);
-
-                string out_path(dir + "n3\\");
-                int i = 0; while (path[i] != '.') { out_path += path[i]; i++; } out_path += "_nlogn.txt";
-
-                std::ofstream out(out_path);
+                //std::ofstream out(out_path);
                 aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
 
                 vector<vector<Point2f>> corners;
+                time_t start = clock();
                 detector.detectRectangleMarkers(img, corners);
-                cv::aruco::drawDetectedMarkers(img, corners);
-                cv::imshow("1", img);
-                waitKey(0);
-                out << corners.size() << endl;
-                for (int i = 0; i < corners.size(); ++i)
-                {
-                    out << corners[i].size() << endl;
-                    for (int j = 0; j < corners[i].size(); ++j)
-                    {
-                        out << corners[i][j] << " ";
-                    }
-                    out << endl;
-                }
-                out.close();
+                time_t end = clock();
+                time << end - start << endl;
+
+                time.close();
+                //cv::aruco::drawDetectedMarkers(img, corners);
+               // cv::imshow("1", img);
+                //waitKey(0);
+                //count_contours << "\n";
+                //out << corners.size() << endl;
+
             }
         }
 
-        TEST(CV_ArucoDetectMarkers, custom_test1)
+        TEST(CV_ArucoDetectMarkers, custom_test12)
         {
             string dir = "D:\\ITLab\\Python\\pictures\\";
             string images_dir = dir + "images\\";
@@ -794,7 +792,7 @@ namespace opencv_test {
             {
                 string old_version(dir + "n3\\");
                 string new_version(dir + "n3\\");
-                int i = 0; while (path[i] != '.') { old_version += path[i]; i++; } old_version += ".txt";
+                int i = 0; while (path[i] != '.') { old_version += path[i]; i++; } old_version += "_nlogn1.txt";
                 i = 0; while (path[i] != '.') { new_version += path[i]; i++; } new_version += "_nlogn.txt";
 
                 std::fstream old(old_version), nw(new_version);
@@ -837,8 +835,6 @@ namespace opencv_test {
                 }
             }
         }
-
-
         INSTANTIATE_TEST_CASE_P(
             CV_ArucoDetectMarkers, ArucoThreading,
             ::testing::Values(
