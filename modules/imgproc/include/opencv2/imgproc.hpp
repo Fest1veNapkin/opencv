@@ -4070,6 +4070,9 @@ CV_EXPORTS_W void approxPolyDP( InputArray curve,
                                 OutputArray approxCurve,
                                 double epsilon, bool closed );
 
+CV_EXPORTS_W void approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
+    int side = 4, float max_error_percentage = -1.0, bool make_hull = true);
+
 /** @brief Calculates a contour perimeter or a curve length.
 
 The function computes a curve length or a closed contour perimeter.
