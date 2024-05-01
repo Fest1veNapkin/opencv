@@ -869,11 +869,11 @@ struct neighbours
         if relevant = 1,  intersection has been calculated
     */
     short relevant;
-    Point2d point;
+    Point2f point;
     int next;
     int prev;
 
-    neighbours(int next_ = -1, int prev_ = -1, Point2d point_ = { -1, -1 }, short relevant_ = 1)
+    neighbours(int next_ = -1, int prev_ = -1, Point2f point_ = { -1, -1 })
     {
         next = next_;
         prev = prev_;
@@ -884,11 +884,11 @@ struct neighbours
 
 struct changes
 {
-    double area;
+    float area;
     int vertex;
-    Point2d intersection;
+    Point2f intersection;
 
-    changes(double area_, int vertex_, Point2d intersection_)
+    changes(float area_, int vertex_, Point2f intersection_)
     {
         area = area_;
         vertex = vertex_;
@@ -913,25 +913,25 @@ struct changes
   [vertex_id.next] and [vertex_id.next.next]
 
 */
-static int recalculation(const neighbours* hull, int vertex_id, double& area_, double& x, double& y, int size)
+static int recalculation(const neighbours* hull, int vertex_id, float& area_, float& x, float& y)
 {
-    Point2d vertex = hull[vertex_id].point,
+    Point2f vertex = hull[vertex_id].point,
         next_vertex = hull[hull[vertex_id].next].point,
         extra_vertex_1 = hull[hull[vertex_id].prev].point,
         extra_vertex_2 = hull[hull[hull[vertex_id].next].next].point;
 
-    Point2d curr_edge = next_vertex - vertex,
+    Point2f curr_edge = next_vertex - vertex,
         prev_edge = vertex - extra_vertex_1,
         next_edge = extra_vertex_2 - next_vertex;
 
-    double cross = prev_edge.x * next_edge.y - prev_edge.y * next_edge.x;
+    float cross = prev_edge.x * next_edge.y - prev_edge.y * next_edge.x;
     if (abs(cross) < 1e-8)
         return -1;
 
-    double t = (curr_edge.x * next_edge.y - curr_edge.y * next_edge.x) / cross;
-    Point2d intersection = vertex + Point2d(prev_edge.x * t, prev_edge.y * t);
+    float t = (curr_edge.x * next_edge.y - curr_edge.y * next_edge.x) / cross;
+    Point2f intersection = vertex + Point2f(prev_edge.x * t, prev_edge.y * t);
 
-    double area = 0.5 * abs((next_vertex.x - vertex.x) * (intersection.y - vertex.y) - (intersection.x - vertex.x) * (next_vertex.y - vertex.y));
+    float area = 0.5f * abs((next_vertex.x - vertex.x) * (intersection.y - vertex.y) - (intersection.x - vertex.x) * (next_vertex.y - vertex.y));
 
     area_ = area;
     x = intersection.x;
@@ -951,7 +951,7 @@ static int recalculation(const neighbours* hull, int vertex_id, double& area_, d
     [vertex_id.next.next] is not relevant because [vertex_id.next] has been deleted
 
 */
-static void update(neighbours* hull, int vertex_id, int size)
+static void update(neighbours* hull, int vertex_id)
 {
     neighbours& v1 = hull[vertex_id], & removed = hull[v1.next], & v2 = hull[removed.next];
 
@@ -971,32 +971,52 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
 {
     CV_Assert(max_error_percentage > 0 || max_error_percentage == -1);
     CV_Assert(side > 2);
+    CV_Assert(_approxCurve.type() == CV_32FC2
+        || _approxCurve.type() == CV_32SC2
+        || _approxCurve.type() == 0);
 
     Mat curve;
-    int depth = curve.depth();
+    int depth = _curve.depth();
+
+    CV_Assert(depth == CV_32F || depth == CV_32S);
 
     if (make_hull)
     {
+
         cv::convexHull(_curve, curve);
     }
     else
     {
-        curve = _curve.getMat();
         CV_Assert(isContourConvex(_curve));
+        curve = _curve.getMat();
     }
 
     CV_Assert(curve.cols == 1);
     CV_Assert(curve.rows >= side);
+
+    //Ptr<neighbours> hull = makePtr<neighbours>(curve.rows);
     neighbours* hull = new neighbours[curve.rows];
     int size = curve.rows;
     std::priority_queue<changes, std::vector<changes>, std::greater<>> areas;
-    double extra_area = 0, max_extra_area = max_error_percentage * contourArea(_curve);
+    float extra_area = 0, max_extra_area = max_error_percentage * contourArea(_curve);
 
-    for (int i = 0; i < size; ++i)
+    if (curve.depth() == CV_32S)
     {
-        Point t = curve.at<cv::Point>(i, 0);
-        hull[i] = neighbours(i + 1, i - 1, Point2d(t.x, t.y));
+        for (int i = 0; i < size; ++i)
+        {
+            Point t = curve.at<cv::Point>(i, 0);
+            hull[i] = neighbours(i + 1, i - 1, Point2f(t.x, t.y));
+        }
     }
+    else
+    {
+        for (int i = 0; i < size; ++i)
+        {
+            Point2f t = curve.at<cv::Point2f>(i, 0);
+            hull[i] = neighbours(i + 1, i - 1, t);
+        }
+    }
+    
     hull[0].prev = size - 1;
     hull[size - 1].next = 0;
 
@@ -1005,15 +1025,15 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
     {
         for (int vertex_id = 0; vertex_id < size; ++vertex_id)
         {
-            double area, new_x, new_y;
+            float area, new_x, new_y;
 
-            if (recalculation(hull, vertex_id, area, new_x, new_y, size) == -1)
+            if (recalculation(hull, vertex_id, area, new_x, new_y) == -1)
             {
-                area = LONG_MAX;
+                area = 1e+38f;
                 new_x = -1; new_y = -1;
             }
 
-            areas.push(changes(area, vertex_id, { new_x, new_y }));
+            areas.push(changes(area, vertex_id, Point2f(new_x, new_y)));
         }
     }
     while (size > side)
@@ -1027,16 +1047,16 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
         }
         else if (hull[vertex_id].relevant == 0)
         {
-            double area, new_x, new_y;
+            float area, new_x, new_y;
             areas.pop();
 
-            if (recalculation(hull, vertex_id, area, new_x, new_y, size) == -1)
+            if (recalculation(hull, vertex_id, area, new_x, new_y) == -1)
             {
-                area = LONG_MAX;
+                area = 1e+38f;
                 new_x = -1; new_y = -1;
             }
 
-            areas.push(changes(area, vertex_id, { new_x, new_y }));
+            areas.push(changes(area, vertex_id, Point2f(new_x, new_y)));
             hull[vertex_id].relevant = 1;
         }
         else
@@ -1044,7 +1064,7 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
             if (max_error_percentage != -1)
             {
                 extra_area += base.area;
-                if (extra_area > max_error_percentage)
+                if (extra_area > max_extra_area)
                 {
                     break;
                 }
@@ -1052,44 +1072,37 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
 
             size--;
             hull[vertex_id].point = base.intersection;
-            update(hull, vertex_id, size);
+            update(hull, vertex_id);
         }
     }
+    if (_approxCurve.type() != 0) depth = _approxCurve.depth();
+    Mat buf(1, size, CV_MAKETYPE(depth, 2));
+    int last_free = 0;
 
-    Point* buf = new Point[size];
-    int i = 0, first_free = 0;
-
-    while (hull[i].relevant == -1)
+    if (depth == CV_32S)
     {
-        ++i;
+        for (int i = 0; i < curve.rows; ++i)
+        {
+            if (hull[i].relevant != -1)
+            {
+                Point t = Point(round(hull[i].point.x), round(hull[i].point.y));
+                buf.at<Point>(0, last_free) = t;
+                last_free++;
+            }
+        }
     }
-    while (true)
+    else
     {
-        buf[first_free] = Point(round(hull[i].point.x), round(hull[i].point.y));
-        if (hull[i].next < i)
+        for (int i = 0; i < curve.rows; ++i)
         {
-            break;
+            if (hull[i].relevant != -1)
+            {
+                buf.at<Point2f>(0, last_free) = hull[i].point;
+                last_free++;
+            }
         }
-        i = hull[i].next;
-        first_free++;
     }
-    /*
-    for (int i = 0; i < size; ++i)
-    {
-        if (hull[i].relevant != -1)
-        {
-            buf[first_free] = Point(round(hull[i].point.x, round(hull[i].point.y));
-            first_free++;
-        }
-        /*
-        if (first_free == size)
-        {
-          break;
-        }
-        * /
-    }
-    */
-    Mat(1, size, curve.type(), buf).copyTo(_approxCurve);
+    buf.copyTo(_approxCurve);
 
 }
 

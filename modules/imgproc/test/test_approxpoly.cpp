@@ -40,7 +40,7 @@
 //M*/
 
 #include "test_precomp.hpp"
-
+#include <filesystem>
 namespace opencv_test { namespace {
 
 //
@@ -376,5 +376,78 @@ TEST(Imgproc_ApproxPoly, bad_epsilon)
     eps = NAN;
     ASSERT_ANY_THROW(approxPolyDP(inputPoints, outputPoints, eps, false));
 }
+
+TEST(Imgproc_ApproxPoly, external1)
+{
+    string imgPath = "D:\\ITLab\\Python\\pictures\\images\\1.png";
+    Mat img = imread(imgPath, IMREAD_GRAYSCALE);
+    Mat thresh;
+    vector<vector<Point>> contours;
+
+    cv::adaptiveThreshold(img, thresh, 255, CV_ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 11 , 2);
+    cv::findContours(thresh, contours, 1, 1);
+    //cv::imshow("thr", thresh);
+    //cv::imshow("img", img);
+    //waitKey(0);
+    for (auto contour : contours)
+    {
+        vector<Point> corners;
+        Mat contour1;
+        cv::convexHull(contour, contour1);
+        if (contour1.rows < 6) continue;
+        approxPolyExternal(contour1, corners, 6);
+        cv::polylines(img, corners, true, (255, 255, 0), 2);
+    }
+    
+    cv::imshow("img", img);
+    waitKey(0);
+}
+
+TEST(Imgproc_ApproxPoly, external)
+
+{
+    string dir = "D:\\ITLab\\Python\\pictures\\";
+    string images_dir = dir + "images\\";
+    vector<string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(images_dir)) {
+        files.push_back(entry.path().filename().string());
+    }
+
+    sort(files.begin(), files.end());
+    for (const string& path : files)
+    {
+        Mat img = imread(images_dir + path);
+        Mat img4, img6;
+        img.copyTo(img4); img.copyTo(img6);
+        cvtColor(img, img, CV_BGR2GRAY);
+        Mat thresh;
+        vector<vector<Point>> contours;
+
+        //cv::adaptiveThreshold(img, thresh, 255, CV_ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 11, 2);
+        cv::threshold(img, thresh, 127, 255, CV_THRESH_BINARY);
+        cv::findContours(thresh, contours, 1, 1);
+        //cv::imshow("thr", thresh);
+        //cv::imshow("img", img);
+        for (auto contour : contours)
+        {
+            vector<Point2f> corners;
+            vector<Point> corners2;
+            Mat contour1;
+
+            cv::convexHull(contour, contour1);
+            if (contour1.rows < 6 || arcLength(contour, true) < 20) continue;
+
+            approxPolyExternal(contour1, corners);
+            approxPolyExternal(contour1, corners2,6);
+            cv::polylines(img4, corners, -1, (177, 255, 0), 2);
+            cv::polylines(img6, corners2, -1, (177, 255, 0), 2);
+        }
+
+        cv::imshow("img4", img4);
+        cv::imshow("img6", img6);
+        waitKey(0);
+    }
+}
+
 
 }} // namespace
