@@ -907,13 +907,8 @@ struct changes
 
 /*
   returns intersection point and extra area
-
-  intersection of lines which contains points:
-  [vertex_id] and [vertex_id.prev]
-  [vertex_id.next] and [vertex_id.next.next]
-
 */
-static int recalculation(const neighbours* hull, int vertex_id, float& area_, float& x, float& y)
+static int recalculation(std::vector<neighbours>& hull, int vertex_id, float& area_, float& x, float& y)
 {
     Point2f vertex = hull[vertex_id].point,
         next_vertex = hull[hull[vertex_id].next].point,
@@ -939,19 +934,7 @@ static int recalculation(const neighbours* hull, int vertex_id, float& area_, fl
     return 0;
 }
 
-/*
-    updating relevant elements for hull:
-
-    [vertex_id] is not relevant
-
-    [vertex_id.next] is deleted
-
-    [vertex_id.prev] is not relevant because [vertex_id] has changed
-
-    [vertex_id.next.next] is not relevant because [vertex_id.next] has been deleted
-
-*/
-static void update(neighbours* hull, int vertex_id)
+static void update(std::vector<neighbours>& hull, int vertex_id)
 {
     neighbours& v1 = hull[vertex_id], & removed = hull[v1.next], & v2 = hull[removed.next];
 
@@ -967,9 +950,9 @@ static void update(neighbours* hull, int vertex_id)
     A greedy algorithm based on contraction of vertices for approximating a convex contour by a external polygon
 */
 void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
-    int side, float max_error_percentage, bool make_hull)
+    int side, float epsilon_percentage, bool make_hull)
 {
-    CV_Assert(max_error_percentage > 0 || max_error_percentage == -1);
+    CV_Assert(epsilon_percentage > 0 || epsilon_percentage == -1);
     CV_Assert(side > 2);
     CV_Assert(_approxCurve.type() == CV_32FC2
         || _approxCurve.type() == CV_32SC2
@@ -994,11 +977,10 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
     CV_Assert(curve.cols == 1);
     CV_Assert(curve.rows >= side);
 
-    //Ptr<neighbours> hull = makePtr<neighbours>(curve.rows);
-    neighbours* hull = new neighbours[curve.rows];
+    std::vector<neighbours> hull(curve.rows);
     int size = curve.rows;
     std::priority_queue<changes, std::vector<changes>, std::greater<>> areas;
-    float extra_area = 0, max_extra_area = max_error_percentage * contourArea(_curve);
+    float extra_area = 0, max_extra_area = epsilon_percentage * contourArea(_curve);
 
     if (curve.depth() == CV_32S)
     {
@@ -1061,7 +1043,7 @@ void cv::approxPolyExternal(InputArray _curve, OutputArray _approxCurve,
         }
         else
         {
-            if (max_error_percentage != -1)
+            if (epsilon_percentage != -1)
             {
                 extra_area += base.area;
                 if (extra_area > max_extra_area)

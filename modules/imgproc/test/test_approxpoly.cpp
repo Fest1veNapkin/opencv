@@ -396,14 +396,14 @@ TEST(Imgproc_ApproxPoly, external1)
         cv::convexHull(contour, contour1);
         if (contour1.rows < 6) continue;
         approxPolyExternal(contour1, corners, 6);
-        cv::polylines(img, corners, true, (255, 255, 0), 2);
+        cv::polylines(img, corners, true, (0, 0, 255), 2);
     }
     
     cv::imshow("img", img);
-    waitKey(0);
+    while ((waitKey(0) & 0xFF)== 27) {}
 }
 
-TEST(Imgproc_ApproxPoly, external)
+TEST(Imgproc_ApproxPoly, external1251)
 
 {
     string dir = "D:\\ITLab\\Python\\pictures\\";
@@ -416,6 +416,8 @@ TEST(Imgproc_ApproxPoly, external)
     sort(files.begin(), files.end());
     for (const string& path : files)
     {
+        if (path != "rects1.png" && path != "rects2.png") continue;
+        cout << path << endl;
         Mat img = imread(images_dir + path);
         Mat img4, img6;
         img.copyTo(img4); img.copyTo(img6);
@@ -424,29 +426,82 @@ TEST(Imgproc_ApproxPoly, external)
         vector<vector<Point>> contours;
 
         //cv::adaptiveThreshold(img, thresh, 255, CV_ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 11, 2);
-        cv::threshold(img, thresh, 127, 255, CV_THRESH_BINARY);
+        cv::adaptiveThreshold(img, thresh, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 11, 2);
         cv::findContours(thresh, contours, 1, 1);
-        //cv::imshow("thr", thresh);
+        cv::imshow("thr", thresh);
         //cv::imshow("img", img);
+        vector<vector<Point>> v4, v6;
         for (auto contour : contours)
         {
-            vector<Point2f> corners;
+            vector<Point> corners;
             vector<Point> corners2;
             Mat contour1;
-
             cv::convexHull(contour, contour1);
             if (contour1.rows < 6 || arcLength(contour, true) < 20) continue;
-
-            approxPolyExternal(contour1, corners);
-            approxPolyExternal(contour1, corners2,6);
-            cv::polylines(img4, corners, -1, (177, 255, 0), 2);
-            cv::polylines(img6, corners2, -1, (177, 255, 0), 2);
+            approxPolyExternal(contour1, corners, 4);
+            approxPolyExternal(contour1, corners2, 6);
+            v4.push_back(corners);
+            v6.push_back(corners2);
+            
+            /*
+            drawContours(img4, new_contour, -1, (177, 255, 0), 2);
+            vector<vector<Point>> new_contour(1); new_contour[0] = corners;
+            new_contour[0] = corners2;
+            drawContours(img6, new_contour, -1, (177, 255, 0), 2);
+            */
         }
-
+        cout << " ___________ 4n _________\n";
+        for (auto i : v4)
+        {
+            for (auto j : i)
+                cout << j << " ";
+            cout << endl;
+        }
+        cout << "\n ___________ 6n _________\n";
+        for (auto i : v6)
+        {
+            for (auto j : i)
+                cout << j << " ";
+            cout << endl;
+        }
+        cout << endl;
         cv::imshow("img4", img4);
         cv::imshow("img6", img6);
         waitKey(0);
     }
+}
+
+
+TEST(Imgproc_ApproxPoly, external)
+{
+    string imgPath = "D:\\ITLab\\Python\\pictures\\images\\rects1.png";
+    Mat img = imread(imgPath, IMREAD_GRAYSCALE);
+    Mat thresh;
+    vector<vector<Point>> contours;
+    vector<vector<Point>> out, right_out;
+    right_out = {
+        { {132, 30}, {87, 135}, {30, 121}, {70, 30} },
+        { {262, 29}, {209, 165}, {115, 142}, {162, 29} },
+        { {420, 216}, {247, 174}, {303, 28}, {483, 26} },
+        { {140, 25}, {91, 141}, {22, 126}, {66, 25} },
+        { {270, 23}, {212, 172}, {107, 145}, {158, 23} },
+        { {492, 20}, {424, 223}, {240, 178}, {299, 22} },
+        { {475, 256}, {10, 131}, {61, 16}, {556, 0} },
+        { {559, 0}, {559, 261}, {0, 261}, {0, 0} }
+    };
+    cv::adaptiveThreshold(img, thresh, 255, CV_ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY, 11, 2);
+    cv::findContours(thresh, contours, 1, 1);
+    for (auto contour : contours)
+    {
+        vector<Point> corners;
+        Mat contour1;
+        cv::convexHull(contour, contour1);
+        if (contour1.rows < 4) continue;
+        approxPolyExternal(contour1, corners, 4, -1, false);
+        out.push_back(corners);
+    };
+
+    GTEST_ASSERT_EQ(out, right_out);
 }
 
 
