@@ -861,7 +861,6 @@ cvApproxPoly( const void* array, int header_size,
     return dst_seq;
 }
 
-
 struct neighbours
 {
     /*
@@ -911,7 +910,7 @@ struct changes
 */
 int recalculation(std::vector<neighbours>& hull, int vertex_id, float& area_, float& x, float& y)
 {
-    Point2f vertex = hull[vertex_id].point,
+    cv::Point2f vertex = hull[vertex_id].point,
         next_vertex = hull[hull[vertex_id].next].point,
         extra_vertex_1 = hull[hull[vertex_id].prev].point,
         extra_vertex_2 = hull[hull[hull[vertex_id].next].next].point;
@@ -948,9 +947,9 @@ void update(std::vector<neighbours>& hull, int vertex_id)
 }
 
 /*
-    A greedy algorithm based on contraction of vertices for approximating a convex contour by a external polygon
+    A greedy algorithm based on contraction of vertices for approximating a convex contour by a bounding polygon
 */
-void cv::approxPolyExternal( InputArray _curve, OutputArray _approxCurve,
+void cv::approxBoundingPoly( InputArray _curve, OutputArray _approxCurve,
                              int side, float epsilon_percentage, bool make_hull)
 {
     CV_Assert(epsilon_percentage > 0 || epsilon_percentage == -1);
@@ -999,10 +998,8 @@ void cv::approxPolyExternal( InputArray _curve, OutputArray _approxCurve,
             hull[i] = neighbours(i + 1, i - 1, t);
         }
     }
-
     hull[0].prev = size - 1;
     hull[size - 1].next = 0;
-
 
     if (size > side)
     {

@@ -402,7 +402,7 @@ TEST(Imgproc_ApproxPoly, external)
         Mat contour1;
         cv::convexHull(contour, contour1);
         if (contour1.rows < 4) continue;
-        approxPolyExternal(contour1, corners, 4, -1, false);
+        approxBoundingPoly(contour1, corners, 4, -1, false);
         out.push_back(corners);
     };
 
@@ -414,9 +414,9 @@ TEST(Imgproc_ApproxPoly, bad_args)
     Mat img(10, 1, CV_32FC2);
     vector<vector<Point>> contours;
     vector<Point> corners;
-    ASSERT_ANY_THROW(approxPolyExternal(img, corners, 0));
-    ASSERT_ANY_THROW(approxPolyExternal(img, corners, 3, 0));
-    ASSERT_ANY_THROW(approxPolyExternal(contours, corners, 4));
+    ASSERT_ANY_THROW(approxBoundingPoly(img, corners, 0));
+    ASSERT_ANY_THROW(approxBoundingPoly(img, corners, 3, 0));
+    ASSERT_ANY_THROW(approxBoundingPoly(contours, corners, 4));
 }
 
 }} // namespace

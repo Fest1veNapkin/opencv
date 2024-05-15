@@ -4072,7 +4072,7 @@ CV_EXPORTS_W void approxPolyDP( InputArray curve,
 
 /** @brief Approximates a polygon with a convex hull with a specified accuracy and number of sides.
 
-The cv::approxPolyExternal function approximates a polygon with a convex hull
+The cv::approxBoundingPoly function approximates a polygon with a convex hull
 so that the difference between the contour area of the original contour and the new polygon is minimal.
 It uses a greedy algorithm for contracting two vertices into one in such a way that the additional area is minimal.
 Straight lines formed by each edge of the convex contour are drawn and the areas of the resulting triangles are considered.
@@ -4087,7 +4087,7 @@ If it equals -1, it is not used. Otherwise algorighm stops if additional area is
 If additional area exceeds the limit, algorithm returns as many vertices as there were at the moment the limit was exceeded.
 @param make_hull If it is true, algorithm creates a convex hull of input contour. Otherwise input vector should be convex.
  */
-CV_EXPORTS_W void approxPolyExternal( InputArray _curve, OutputArray _approxCurve,
+CV_EXPORTS_W void approxBoundingPoly( InputArray _curve, OutputArray _approxCurve,
                                       int side, float epsilon_percentage = -1.0,
                                       bool make_hull = true );
 
