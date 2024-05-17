@@ -4079,7 +4079,7 @@ Straight lines formed by each edge of the convex contour are drawn and the areas
 Each vertex will lie either on the original contour or outside it
 
 
-@param curve Input vector of a 2D point stored in std::vector or Mat.
+@param curve Input vector of a 2D points stored in std::vector or Mat, points must be float or integer.
 @param approxCurve Result of the approximation. The type is vector of a 2D point (Point2f or Point) in std::vector or Mat.
 @param side The parameter defines the number of sides of the result polygon.
 @param epsilon_percentage defines the percentage of the maximum of additional area.
@@ -4087,7 +4087,7 @@ If it equals -1, it is not used. Otherwise algorighm stops if additional area is
 If additional area exceeds the limit, algorithm returns as many vertices as there were at the moment the limit was exceeded.
 @param make_hull If it is true, algorithm creates a convex hull of input contour. Otherwise input vector should be convex.
  */
-CV_EXPORTS_W void approxBoundingPoly( InputArray _curve, OutputArray _approxCurve,
+CV_EXPORTS_W void approxBoundingPoly( InputArray curve, OutputArray approxCurve,
                                       int side, float epsilon_percentage = -1.0,
                                       bool make_hull = true );
 
